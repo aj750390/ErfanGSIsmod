@@ -98,9 +98,6 @@ def ParseArguments(argv):
   parser.add_argument("--share_dup_blocks", "-c", action="store_true",
                       help="ext4 share dup blocks (e2fsdroid).")
   args, remainder = parser.parse_known_args(argv)
-  # The current argparse doesn't handle intermixed arguments well. Checks
-  # manually whether the file_contexts exists as the last argument.
-  # TODO(xunchang) use parse_intermixed_args() when we switch to python 3.7.
   return args
 def ConstructE2fsCommands(args):
   """Builds the mke2fs & e2fsdroid command based on the input arguments.
@@ -135,11 +132,11 @@ def ConstructE2fsCommands(args):
     e2fsdroid_opts += ["-S", args.file_contexts]
   if args.flash_erase_block_size:
     mke2fs_extended_opts.append("stripe_width={}".format(
-        int(args.flash_erase_block_size) / BLOCKSIZE))
+        int(args.flash_erase_block_size) // BLOCKSIZE))
   if args.flash_logical_block_size:
     # stride should be the max of 8kb and the logical block size
     stride = max(int(args.flash_logical_block_size), 8192)
-    mke2fs_extended_opts.append("stride={}".format(stride / BLOCKSIZE))
+    mke2fs_extended_opts.append("stride={}".format(stride // BLOCKSIZE))
   if args.mke2fs_hash_seed:
     mke2fs_extended_opts.append("hash_seed=" + args.mke2fs_hash_seed)
   if args.journal_size:
@@ -161,11 +158,11 @@ def ConstructE2fsCommands(args):
     mke2fs_opts += ["-U", args.mke2fs_uuid]
   if mke2fs_extended_opts:
     mke2fs_opts += ["-E", ','.join(mke2fs_extended_opts)]
-  # Round down the filesystem length to be a multiple of the block size
-  blocks = int(args.fs_size) / BLOCKSIZE
+  # Round down the filesystem length to be a multiple of the block size using integer floor division
+  blocks = int(args.fs_size) // BLOCKSIZE
   mke2fs_cmd = ([os.uname()[0] + "/bin/mke2fs"] + mke2fs_opts +
                 ["-t", args.ext_variant, "-b", str(BLOCKSIZE), args.output_file,
-                 str(blocks)])
+                 str(int(blocks))])
   e2fsdroid_cmd = ([os.uname()[0] + "/bin/e2fsdroid"] + e2fsdroid_opts +
                    ["-f", args.src_dir, "-a", args.mount_point,
                     args.output_file])
@@ -203,8 +200,6 @@ def main(argv):
   if args.timestamp:
     e2fsdroid_env["E2FSPROGS_FAKE_TIME"] = args.timestamp
   output, ret = RunCommand(e2fsdroid_cmd, e2fsdroid_env)
-  # The build script is parsing the raw output of e2fsdroid; keep the pattern
-  # unchanged for now.
   print(output)
   if ret != 0:
     logging.error(output)
